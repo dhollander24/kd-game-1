@@ -215,6 +215,8 @@ details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px
   .score { grid-template-columns: 1fr 1fr; }
   .vs { display: none; }
 }
+/* The pixel face is hard to read for letters and digits that matter (2/8, 5/S, G/Q) */
+.tile, .tile small, .stats, .cell .num, .energy, .tool .cost, .vs, .btn, .banner .headline, .team .who { font-family: var(--body); font-weight: 700; }
 button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .keys { display: inline; }
 @media (hover: none) { .keys { display: none; } .tile:not(.used):not(.mini):hover { filter: none; } }
@@ -236,6 +238,9 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tool { grid-template-columns: 28px minmax(0, 1fr); padding: 6px; }
   .tool img { width: 28px; height: 28px; }
+  .tool > span { display: none; }
+  .tool img { grid-row: auto; }
+  .tool { min-height: 48px; }
   .btn { min-height: 44px; }
   .react button { width: 44px; height: 44px; }
 }
