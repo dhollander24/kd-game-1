@@ -184,6 +184,8 @@ h1 span { color: var(--gold); }
 .hint { font-size: 13px; color: var(--muted); }
 .err { font-size: 14px; color: var(--danger); min-height: 1em; }
 .err:empty { display: none; }
+.prize { color: var(--ok); font-weight: 700; }
+.tip { border-color: var(--gold); }
 
 .log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; max-height: 220px; overflow-y: auto; }
 .log li { padding-left: 10px; border-left: 3px solid var(--line); color: var(--muted); }
@@ -267,6 +269,7 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     </div>
     <div class="side-col">
       <div class="banner" id="banner"></div>
+      <div class="panel tip" id="tip" hidden></div>
       <div class="panel" id="hand"></div>
       <div class="panel" id="reactPanel" hidden>
         <h2>Send a reaction</h2>
@@ -279,15 +282,17 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
       <details class="rules">
         <summary>How to play</summary>
         <ul>
-          <li><b>Mine with words.</b> Each turn, spell a word from your 7 letter blocks. Its letter points become energy. Rare letters are worth more, and 5, 6 and 7 letter words earn +3, +6 and +12 bonus energy.</li>
-          <li><b>Spend energy.</b> Build stone walls (3) in your own land, recruit a Swordsman (6) or Archer (7) next to your keep, or throw TNT (9).</li>
-          <li><b>Command units.</b> Tap a unit to see where it can move (green) and what it can hit (red). Each unit moves once, then may attack. New recruits wait a turn.</li>
-          <li><b>Swordsman:</b> 4 health, hits for 2 next to it, moves 2. <b>Archer:</b> 2 health, hits for 1 up to 3 squares away, moves 1.</li>
-          <li><b>TNT</b> lands near your keep or your units. It deals 2 damage to its square and 1 to each square beside it, friend or foe.</li>
-          <li><b>Diamond ore</b> in the middle row pays +2 energy at the start of your turn for each of your units standing on it.</li>
-          <li>Unused energy carries over, up to 10. Can't find a word? Swap your blocks for a new set.</li>
-          <li>Words not in the built-in dictionary go to your opponent to allow or reject.</li>
-          <li>Knock the enemy keep from 15 health to 0 to win.</li>
+          <li><b>Goal:</b> knock the other castle (the keep) from 10 health to 0.</li>
+          <li><b>1. Spell a word</b> from your 7 letter blocks. Its points become energy. Words of 5 or more letters get +3. Can't find one? Swap your blocks, but you earn nothing that turn.</li>
+          <li><b>Long words:</b> 6 letters earns a free swordsman. 7 letters earns a free swordsman and TNT. Free items keep until you use them.</li>
+          <li><b>Special words</b> earn a free item: SWORD, BLADE, KNIGHT (swordsman); BOW, ARROW, SHOOT (archer); WALL, STONE, ROCK (wall); BOOM, BOMB, FIRE (TNT). LOVE, HEART, KISS and HUG heal your castle by 2. There are a few more to find.</li>
+          <li><b>2. Spend energy:</b> wall (3) on your own land, swordsman (6) or archer (7) beside your castle, or TNT (6). Up to 10 unused energy carries over.</li>
+          <li><b>3. Move and attack.</b> Tap a troop: green squares are moves, red are targets. It can move and then attack once, but attacking ends its turn. New troops wait a turn.</li>
+          <li><b>Swordsman:</b> 4 health, hits for 2 on the next square, moves 3. <b>Archer:</b> 2 health, hits for 1 up to 3 squares away, moves 1. Archers shoot over walls.</li>
+          <li><b>TNT</b> lands within 3 squares of your castle or 2 of your troops. It does 3 damage there and 1 to each square beside it, including your own things.</li>
+          <li><b>Diamonds</b> in the middle column pay +2 energy at the start of your turn for each of your troops standing on them.</li>
+          <li><b>Going second?</b> You start with 4 energy to make up for it.</li>
+          <li><b>Unknown words</b> go to the other player to allow or reject.</li>
         </ul>
       </details>
     </div>
@@ -302,12 +307,24 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   const KEEP = { A: { x: 0, y: 3 }, B: { x: 8, y: 3 } };
   const ORE = ["4,1", "4,3", "4,5"];
   const UNITS = {
-    sword: { name: "Swordsman", cost: 6, hp: 4, atk: 2, move: 2, range: 1 },
+    sword: { name: "Swordsman", cost: 6, hp: 4, atk: 2, move: 3, range: 1 },
     archer: { name: "Archer", cost: 7, hp: 2, atk: 1, move: 1, range: 3 },
   };
-  const COST = { wall: 3, tnt: 9 };
-  const WALL_HP = 3, KEEP_HP = 15, CARRY_CAP = 10, ORE_PAY = 2, RACK = 7;
-  const BONUS = { 5: 3, 6: 6, 7: 12 };
+  const COST = { wall: 3, tnt: 6 };
+  const WALL_HP = 3, KEEP_HP = 10, CARRY_CAP = 10, ORE_PAY = 2, RACK = 7;
+  const BONUS = { 5: 3, 6: 3, 7: 3 };
+  const TNT_DMG = 3, HEAL = 2, SECOND_BONUS = 4;
+  // Words that hand out a free item, or heal your keep
+  const MAGIC = {
+    wall: "wall stone brick block fort rock shield",
+    sword: "sword blade knight iron steel duel",
+    archer: "bow arrow archer aim shoot",
+    tnt: "tnt boom bomb blast creeper fire",
+    heal: "love heart kiss hug heal",
+  };
+  const ITEM = { wall: "wall", sword: "swordsman", archer: "archer", tnt: "TNT" };
+  const MAGIC_OF = {};
+  for (const [k, list] of Object.entries(MAGIC)) for (const w of list.split(" ")) MAGIC_OF[w] = k;
   const VAL = { a:1,b:3,c:3,d:2,e:1,f:4,g:2,h:4,i:1,j:8,k:5,l:1,m:3,n:1,o:1,p:3,q:10,r:1,s:1,t:1,u:1,v:4,w:4,x:8,y:4,z:10 };
   const BAG = "aaaaaaaaabbccddddeeeeeeeeeeeeffggghhiiiiiiiiijkllllmmnnnnnnooooooooppqrrrrrrssssttttttuuuuvvwwxyyz";
   const VOWELS = "aeiou";
@@ -368,7 +385,7 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   };
 
   function isWord(w) {
-    if (DICT.has(w)) return true;
+    if (DICT.has(w) || MAGIC_OF[w]) return true;
     const t = [];
     const cut = (n, add = "") => t.push(w.slice(0, -n) + add);
     if (w.endsWith("s")) cut(1);
@@ -387,6 +404,20 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     const base = letters.reduce((n, l) => n + VAL[l], 0);
     return { base, bonus: BONUS[letters.length] || 0, total: base + (BONUS[letters.length] || 0) };
   }
+  function rewards(word) {
+    const out = [];
+    if (word.length >= 6) out.push("sword");
+    if (word.length >= 7) out.push("tnt");
+    const m = MAGIC_OF[word] || (word.endsWith("s") && MAGIC_OF[word.slice(0, -1)]);
+    if (m) out.push(m);
+    return out;
+  }
+  const rewardText = (list) => list.map((k) => (k === "heal" ? `+${HEAL} keep health` : "a free " + ITEM[k])).join(" and ");
+  const priceOf = (k) => (UNITS[k] ? UNITS[k].cost : COST[k]);
+  const freeOf = (s, t, k) => (s.free && s.free[t][k]) || 0;
+  const canBuy = (s, t, k) => freeOf(s, t, k) > 0 || s.energy[t] >= priceOf(k);
+  function pay(s, t, k) { if (freeOf(s, t, k)) s.free[t][k]--; else s.energy[t] -= priceOf(k); }
+  const maxKeep = (s) => s.maxKeep || 15; // matches started before the rule change had 15
   function fillRack(rack) {
     const r = rack.slice();
     while (r.length < RACK) r.push(BAG[Math.floor(Math.random() * BAG.length)]);
@@ -400,10 +431,11 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   function newGame(seats, first = "A") {
     const s = {
       gid: rid(), seq: 0, seats, first, turn: first, round: 1, phase: "word",
-      keep: { A: KEEP_HP, B: KEEP_HP }, energy: { A: 0, B: 0 },
+      keep: { A: KEEP_HP, B: KEEP_HP }, maxKeep: KEEP_HP, free: { A: {}, B: {} }, energy: { A: 0, B: 0 },
       racks: { A: fillRack([]), B: fillRack([]) },
       units: [], walls: [], pending: null, last: null, log: [], winner: null, nextId: 1,
     };
+    s.energy[other(first)] = SECOND_BONUS; // makes up for moving second
     addLog(s, null, "The battle begins. " + TEAM[first].name + " moves first.");
     beginTurn(s, first);
     return s;
@@ -587,10 +619,13 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     const letters = idxs.map((i) => rack[i]);
     const v = wordValue(letters);
     s.energy[t] += v.total;
+    const won = rewards(letters.join(""));
+    if (!s.free) s.free = { A: {}, B: {} };
+    for (const k of won) { if (k === "heal") s.keep[t] = Math.min(maxKeep(s), s.keep[t] + HEAL); else s.free[t][k] = (s.free[t][k] || 0) + 1; }
     s.racks[t] = fillRack(rack.filter((_, i) => !idxs.includes(i)));
     s.last = { team: t, word: letters.join(""), value: v.total };
     s.phase = "act"; s.pending = null;
-    addLog(s, t, `${TEAM[t].name} spelled ${letters.join("").toUpperCase()} for ${v.total} energy${v.bonus ? ` (+${v.bonus} length bonus)` : ""}.`);
+    addLog(s, t, `${TEAM[t].name} spelled ${letters.join("").toUpperCase()} for ${v.total} energy${v.bonus ? ` (+${v.bonus} length bonus)` : ""}${won.length ? " and " + rewardText(won) : ""}.`);
   }
   function swapTiles() {
     resetUi();
@@ -610,29 +645,28 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
       const tool = ui.tool;
       act((s) => {
         if (tool === "wall") {
-          if (s.energy[t] < COST.wall) return "Not enough energy for a wall.";
+          if (!canBuy(s, t, "wall")) return "Not enough energy for a wall.";
           if (!buildCells(s, t).has(k)) return "Walls go on empty squares in your own land.";
-          s.energy[t] -= COST.wall; s.walls.push({ x, y, team: t, hp: WALL_HP });
+          pay(s, t, "wall"); s.walls.push({ x, y, team: t, hp: WALL_HP });
           addLog(s, t, `${TEAM[t].name} built a stone wall.`);
         } else if (tool === "tnt") {
-          if (s.energy[t] < COST.tnt) return "Not enough energy for TNT.";
+          if (!canBuy(s, t, "tnt")) return "Not enough energy for TNT.";
           if (!tntCells(s, t).has(k)) return "TNT must land within 3 squares of your keep or 2 of one of your units.";
-          s.energy[t] -= COST.tnt;
-          const hits = [damage(s, x, y, 2)];
+          pay(s, t, "tnt");
+          const hits = [damage(s, x, y, TNT_DMG)];
           for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) if (inside(x + dx, y + dy)) hits.push(damage(s, x + dx, y + dy, 1));
           const hit = hits.filter(Boolean);
           addLog(s, t, `${TEAM[t].name} set off TNT${hit.length ? ", hitting " + hit.join(", ") : " on empty ground"}.`);
         } else {
           const u = UNITS[tool];
-          if (s.energy[t] < u.cost) return `Not enough energy for a ${u.name.toLowerCase()}.`;
+          if (!canBuy(s, t, tool)) return `Not enough energy for a ${u.name.toLowerCase()}.`;
           if (!spawnCells(s, t).has(k)) return "Recruits must appear on an empty square touching your keep.";
-          s.energy[t] -= u.cost;
+          pay(s, t, tool);
           s.units.push({ id: s.nextId++, team: t, type: tool, x, y, hp: u.hp, moved: true, attacked: true, fresh: true });
           addLog(s, t, `${TEAM[t].name} recruited a ${u.name.toLowerCase()}.`);
         }
       });
-      const cost = ui.tool === "wall" || ui.tool === "tnt" ? COST[ui.tool] : UNITS[ui.tool].cost;
-      if (!ui.err && (state.energy[t] < cost || ui.tool !== "wall")) ui.tool = null;
+      if (!ui.err && (!canBuy(state, t, ui.tool) || ui.tool !== "wall")) ui.tool = null;
       render();
       return;
     }
@@ -662,7 +696,7 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
   // ---------- render ----------
   function render() {
-    renderInvite(); renderMode(); renderScore(); renderBoard(); renderBanner(); renderHand(); renderLog(); renderReact();
+    renderInvite(); renderMode(); renderScore(); renderBoard(); renderBanner(); renderTip(); renderHand(); renderLog(); renderReact();
   }
   function renderMode() {
     $("mode").textContent = !online ? "Pass-and-play on this device" : readOnly ? "Watching" : mySeat() ? `Online · you are ${TEAM[mySeat()].name}` : "Online";
@@ -673,8 +707,8 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     const card = (t) => el("div", { class: `team ${TEAM[t].cls}${state.turn === t && !state.winner && (seatsFull() || !online) ? " active" : ""}` },
       el("div", { class: "side", text: TEAM[t].name + (state.turn === t && !state.winner ? " · turn" : "") }),
       el("div", { class: "who", text: playerName(t) }),
-      el("div", { class: "hp", "aria-label": `Keep health ${state.keep[t]} of ${KEEP_HP}` }, Array.from({ length: KEEP_HP }, (_, i) => el("i", { class: i < state.keep[t] ? "on" : "" }))),
-      el("div", { class: "stats" }, el("span", { text: `Keep ${state.keep[t]}/${KEEP_HP}` }), el("span", { class: "en", text: `⚡ ${state.energy[t]}` })));
+      el("div", { class: "hp", "aria-label": `Keep health ${state.keep[t]} of ${maxKeep(state)}` }, Array.from({ length: maxKeep(state) }, (_, i) => el("i", { class: i < state.keep[t] ? "on" : "" }))),
+      el("div", { class: "stats" }, el("span", { text: `Keep ${state.keep[t]}/${maxKeep(state)}` }), el("span", { class: "en", text: `⚡ ${state.energy[t]}` })));
     box.append(card("A"), el("div", { class: "vs", text: `R${state.round}` }), card("B"));
   }
   function renderBoard() {
@@ -763,6 +797,23 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     }
   }
 
+  // First-game tips: each shows once per person, when it becomes useful
+  const TIPS = {
+    word: "Tap your letter blocks to spell a word, then tap Mine it. The points become energy. 6 letters earns a free swordsman, 7 adds TNT, and words like SWORD, BOOM or LOVE do something special.",
+    buy: "Spend your energy. Tap Swordsman, then a yellow square beside your castle. New troops can move on your next turn. Tap End turn when you're done.",
+    move: "Your troops are ready. Tap one on the board: green squares are where it can move, red ones are what it can hit. March on the other castle, or stand on diamonds for extra energy.",
+  };
+  const tipsSeen = {};
+  function renderTip() {
+    const box = $("tip"); box.replaceChildren(); box.hidden = true;
+    if (!state || !myTurn() || state.phase === "review") return;
+    const t = state.turn;
+    const id = state.phase === "word" ? "word" : state.units.some((u) => u.team === t && !u.fresh && !u.attacked) ? "move" : "buy";
+    if (tipsSeen[id] || store.get("kd-tip-" + id)) return;
+    box.hidden = false;
+    box.append(el("div", { text: TIPS[id] }), el("div", { class: "row" },
+      el("button", { class: "btn", type: "button", text: "Got it", onclick: () => { tipsSeen[id] = true; store.set("kd-tip-" + id, "1"); render(); } })));
+  }
   function renderHand() {
     const h = $("hand"); h.replaceChildren();
     if (!state && net) { h.append(el("h2", { text: "Connecting" }), el("p", { class: "hint", text: "This can take a few seconds." })); return; }
@@ -807,6 +858,8 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
       h.append(el("h2", { text: online ? "Spell a word" : `${TEAM[t].name}: spell a word` }));
       h.append(el("div", { class: "tiles slot-row" }, ui.pick.map((i, n) => tileEl(rack[i], { onclick: () => { ui.pick.splice(n, 1); ui.unknownWord = null; render(); } }))));
       h.append(el("div", { class: "tiles rack" }, rack.map((l, i) => tileEl(l, { used: ui.pick.includes(i), onclick: () => { ui.pick.push(i); ui.err = ""; ui.unknownWord = null; render(); } }))));
+      const won = rewards(letters.join(""));
+      if (won.length) h.append(el("div", { class: "prize", text: "This word earns " + rewardText(won) + "!" }));
       h.append(el("div", { class: "err", text: ui.err }));
       if (ui.unknownWord) {
         h.append(el("div", { class: "row" }, el("span", { class: "hint", text: `“${ui.unknownWord.toUpperCase()}” isn't in the dictionary.` }),
@@ -822,15 +875,15 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     }
     // act phase
     const e = state.energy[t];
-    const tool = (id, img, name, cost, desc) => el("button", { class: `tool${ui.tool === id ? " on" : ""}`, type: "button", disabled: e < cost || null,
+    const tool = (id, img, name, cost, desc) => el("button", { class: `tool${ui.tool === id ? " on" : ""}`, type: "button", disabled: !canBuy(state, t, id) || null,
       onclick: () => { ui.tool = ui.tool === id ? null : id; ui.sel = null; ui.err = ""; render(); } },
-      el("img", { src: IMG[img], alt: "" }), el("b", {}, name + " ", el("span", { class: "cost", text: `⚡${cost}` })), el("span", { text: desc }));
+      el("img", { src: IMG[img], alt: "" }), el("b", {}, name + " ", el("span", { class: "cost", text: freeOf(state, t, id) ? `FREE ×${freeOf(state, t, id)}` : `⚡${cost}` })), el("span", { text: desc }));
     h.append(el("div", { class: "row", style: "justify-content:space-between" }, el("h2", { text: "Orders" }), el("div", { class: "energy", text: `⚡ ${e}` })));
     h.append(el("div", { class: "tools" },
       tool("wall", "wall", "Wall", COST.wall, "Blocks a square in your land"),
-      tool("sword", "sword", "Swordsman", UNITS.sword.cost, "4 health · hits 2 · moves 2"),
+      tool("sword", "sword", "Swordsman", UNITS.sword.cost, "4 health · hits 2 · moves 3"),
       tool("archer", "archer", "Archer", UNITS.archer.cost, "2 health · hits 1 at range 3"),
-      tool("tnt", "tnt", "TNT", COST.tnt, "2 damage + 1 to neighbors")));
+      tool("tnt", "tnt", "TNT", COST.tnt, "3 damage + 1 to neighbors")));
     let hint = "Pick an order above, or tap one of your units on the board.";
     if (ui.tool === "wall") hint = "Tap a yellow-outlined square in your land to build. Tap Wall again to stop.";
     else if (ui.tool === "tnt") hint = "Tap an orange-outlined square to blow it up. Careful, it hurts your own units too.";
