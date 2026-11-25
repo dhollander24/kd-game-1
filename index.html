@@ -1,0 +1,988 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style><script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script></head><body>
+<title>KD Game 1</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: a night-time war table. Board on the left, your hand of letter blocks and orders on the right; stacks on phones. */
+:root {
+  --night: #12141c;
+  --panel: #1d202b;
+  --panel-hi: #292d3b;
+  --line: #3a3f52;
+  --ink: #eceae2;
+  --muted: #9b9daa;
+  --grass: #4c7a37;
+  --red: #e0493c;
+  --red-dk: #7d241d;
+  --blue: #4378e6;
+  --blue-dk: #1f3a85;
+  --gold: #f2c54b;
+  --diamond: #5fe0d6;
+  --ok: #7fd96c;
+  --danger: #ff6b5a;
+  --display: "Pixelify Sans", "Courier New", monospace;
+  --body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--night); color: var(--ink); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.45; }
+button { font: inherit; color: inherit; }
+button:focus-visible, .cell:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+.app {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 40px;
+  display: grid; gap: 16px;
+}
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 {
+  font-family: var(--display); font-weight: 700; font-size: clamp(28px, 5vw, 40px);
+  margin: 0; letter-spacing: 0.02em; line-height: 1;
+  text-shadow: 3px 3px 0 var(--red-dk), 6px 6px 0 #000;
+}
+h1 span { color: var(--gold); }
+.mode { font-family: var(--display); font-size: 13px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+
+.layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .layout { grid-template-columns: minmax(0, 560px) minmax(0, 1fr); align-items: start; } }
+
+/* Scoreboard */
+.score { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
+.team {
+  background: var(--panel); border: 2px solid var(--line); padding: 10px 12px; display: grid; gap: 6px; min-width: 0;
+}
+.team.active.red { border-color: var(--red); box-shadow: 0 0 0 2px var(--red-dk) inset; }
+.team.active.blue { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-dk) inset; }
+.team .who { font-family: var(--display); font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team .side { font-size: 12px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+.team.red .side { color: #f0897f; }
+.team.blue .side { color: #8fb0f5; }
+.hp { display: flex; gap: 2px; }
+.hp i { flex: 1; height: 8px; background: #3b2224; }
+.team.red .hp i.on { background: var(--red); }
+.team.blue .hp i { background: #1e2740; }
+.team.blue .hp i.on { background: var(--blue); }
+.stats { display: flex; justify-content: space-between; font-family: var(--display); font-size: 14px; font-variant-numeric: tabular-nums; }
+.stats .en { color: var(--gold); }
+.vs { align-self: center; font-family: var(--display); color: var(--muted); font-size: 14px; }
+
+/* Board */
+.board-wrap { display: grid; gap: 10px; }
+.board {
+  display: grid; grid-template-columns: repeat(9, 1fr); gap: 0;
+  border: 4px solid #0a0b10; box-shadow: 0 0 0 2px var(--line), 0 10px 0 #07080c;
+  image-rendering: pixelated; max-width: 560px; width: 100%;
+}
+.cell {
+  aspect-ratio: 1; border: 0; padding: 0; position: relative; cursor: default;
+  background-image: var(--grass-img); background-size: 100% 100%; image-rendering: pixelated;
+}
+.cell.c1 { background-image: var(--grass-img2); }
+.cell.mid { background-image: var(--stone-img); }
+.cell.ore { background-image: var(--ore-img); }
+.cell.half-A::before, .cell.half-B::before { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.cell.half-A::before { background: rgba(224, 73, 60, 0.10); }
+.cell.half-B::before { background: rgba(67, 120, 230, 0.12); }
+.cell img { position: absolute; inset: 8%; width: 84%; height: 84%; image-rendering: pixelated; pointer-events: none; }
+.cell .plate { position: absolute; inset: 6%; pointer-events: none; }
+.cell .plate.A { background: var(--red); box-shadow: inset 0 -4px 0 var(--red-dk); }
+.cell .plate.B { background: var(--blue); box-shadow: inset 0 -4px 0 var(--blue-dk); }
+.cell.keep .plate { inset: 0; }
+.cell .pips { position: absolute; left: 8%; right: 8%; bottom: 3%; display: flex; gap: 1px; pointer-events: none; }
+.cell .pips i { flex: 1; height: 4px; background: #000; }
+.cell .pips i.on { background: var(--ok); }
+.cell .num {
+  position: absolute; right: 2px; top: 1px; font-family: var(--display); font-size: 11px; font-weight: 700;
+  color: #fff; text-shadow: 1px 1px 0 #000; pointer-events: none;
+}
+.cell.spent img { opacity: 0.55; }
+.cell.clickable { cursor: pointer; }
+.cell.hl-place::after, .cell.hl-move::after, .cell.hl-hit::after, .cell.hl-sel::after, .cell.hl-blast::after {
+  content: ""; position: absolute; inset: 3px; pointer-events: none;
+}
+.cell.hl-place::after { border: 2px dashed var(--gold); }
+.cell.hl-move::after { background: rgba(127, 217, 108, 0.35); border: 2px solid var(--ok); }
+.cell.hl-hit::after { border: 3px solid var(--danger); animation: pulse 0.9s steps(2) infinite; }
+.cell.hl-blast::after { border: 2px dashed #ff9a3c; background: rgba(255, 120, 40, 0.12); }
+.cell.hl-sel::after { border: 3px solid #fff; }
+.cell.flash { animation: flash 0.5s steps(3) 1; }
+@keyframes pulse { 50% { border-color: transparent; } }
+@keyframes flash { 0%, 100% { filter: none; } 50% { filter: brightness(2.2) saturate(0); } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend b { color: var(--ink); font-weight: 700; }
+
+/* Banner */
+.banner {
+  background: var(--panel); border: 2px solid var(--line); padding: 12px 14px;
+  font-size: 15px; display: grid; gap: 8px;
+}
+.banner .headline { font-family: var(--display); font-size: 19px; font-weight: 600; line-height: 1.2; text-wrap: balance; }
+.banner .sub { color: var(--muted); }
+.lastword { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+
+/* Panel */
+.side-col { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--panel); border: 2px solid var(--line); padding: 14px; display: grid; gap: 12px; }
+.panel h2 { margin: 0; font-family: var(--display); font-size: 14px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.tiles { display: flex; flex-wrap: wrap; gap: 6px; min-height: 50px; }
+.slot-row { min-height: 54px; padding: 6px; background: #0c0d13; border: 2px solid #0a0b10; box-shadow: inset 0 0 0 2px var(--line); }
+.slot-row:empty::before { content: "Tap blocks or type to spell a word"; color: var(--muted); font-size: 13px; align-self: center; padding-left: 6px; }
+.tile {
+  --speck: #6c707c;
+  width: 44px; height: 44px; position: relative; border: 0; cursor: pointer;
+  background-color: #8b8f9c;
+  background-image:
+    radial-gradient(circle at 22% 30%, var(--speck) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 74% 64%, var(--speck) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 60% 18%, var(--speck) 0 2px, transparent 2.5px);
+  box-shadow: inset -4px -4px 0 rgba(0,0,0,0.35), inset 4px 4px 0 rgba(255,255,255,0.18);
+  font-family: var(--display); font-size: 22px; font-weight: 700; color: #fff; text-shadow: 2px 2px 0 #000;
+  text-transform: uppercase; display: grid; place-items: center;
+}
+.tile small { position: absolute; right: 3px; bottom: 1px; font-size: 11px; text-shadow: 1px 1px 0 #000; }
+.tile.t2 { --speck: #e0b494; }
+.tile.t4 { --speck: var(--gold); }
+.tile.t8 { --speck: var(--diamond); }
+.tile.used { opacity: 0.25; cursor: default; }
+.tile.mini { width: 30px; height: 30px; font-size: 15px; cursor: default; }
+.tile.mini small { font-size: 9px; }
+.tile:not(.used):not(.mini):hover { filter: brightness(1.12); }
+
+.btn {
+  font-family: var(--display); font-size: 15px; font-weight: 600; padding: 9px 14px; cursor: pointer;
+  background: #6f7383; border: 0; color: #fff; text-shadow: 1px 1px 0 #000;
+  box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), inset 3px 3px 0 rgba(255,255,255,0.2);
+}
+.btn:hover:not(:disabled) { filter: brightness(1.1); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.go { background: #3f8f37; }
+.btn.warn { background: #a8362c; }
+.btn.blue { background: var(--blue-dk); }
+.btn.ghost { background: transparent; box-shadow: inset 0 0 0 2px var(--line); text-shadow: none; }
+.btn.big { font-size: 18px; padding: 12px 18px; }
+
+.tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tool {
+  display: grid; grid-template-columns: 36px 1fr; gap: 4px 10px; align-items: center; text-align: left;
+  background: var(--panel-hi); border: 2px solid var(--line); padding: 8px; cursor: pointer;
+}
+.tool img { width: 36px; height: 36px; image-rendering: pixelated; grid-row: span 2; }
+.tool b { font-family: var(--display); font-size: 15px; font-weight: 600; }
+.tool span { font-size: 12px; color: var(--muted); }
+.tool .cost { color: var(--gold); font-family: var(--display); }
+.tool.on { border-color: var(--gold); background: #3a3320; }
+.tool:disabled { opacity: 0.4; cursor: not-allowed; }
+.energy { font-family: var(--display); font-size: 28px; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; }
+.hint { font-size: 13px; color: var(--muted); }
+.err { font-size: 14px; color: var(--danger); min-height: 1em; }
+.err:empty { display: none; }
+
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; max-height: 220px; overflow-y: auto; }
+.log li { padding-left: 10px; border-left: 3px solid var(--line); color: var(--muted); }
+.log li.A { border-left-color: var(--red); }
+.log li.B { border-left-color: var(--blue); }
+.log li b { color: var(--ink); }
+
+.react { display: flex; gap: 6px; flex-wrap: wrap; }
+.react button { font-size: 20px; background: var(--panel-hi); border: 2px solid var(--line); width: 42px; height: 42px; cursor: pointer; }
+.react button:hover { border-color: var(--gold); }
+.floaty {
+  position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); font-size: 46px; pointer-events: none; z-index: 30;
+  animation: rise 2.4s ease-out forwards; text-align: center;
+}
+.floaty small { display: block; font-family: var(--display); font-size: 13px; color: var(--ink); text-shadow: 1px 1px 0 #000; }
+@keyframes rise { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 15% { opacity: 1; transform: translateY(-30px) scale(1.1); } 100% { transform: translateY(-62vh) scale(1); opacity: 0; } }
+
+details.rules { background: var(--panel); border: 2px solid var(--line); padding: 12px 14px; }
+details.rules summary { cursor: pointer; font-family: var(--display); font-size: 16px; font-weight: 600; }
+details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; max-width: 68ch; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); top: calc(14px + env(safe-area-inset-top, 0px));
+  background: #000; border: 2px solid var(--gold); padding: 10px 14px; z-index: 40; max-width: min(92vw, 520px);
+  font-size: 14px;
+}
+@media (max-width: 480px) {
+  .tile { width: 38px; height: 38px; font-size: 19px; }
+  .tools { grid-template-columns: minmax(0, 1fr); }
+  .score { grid-template-columns: 1fr 1fr; }
+  .vs { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell.hl-hit::after, .cell.flash, .floaty { animation: none; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <h1>KD <span>Game 1</span></h1>
+    <div class="mode" id="mode">Pass-and-play on this device</div>
+  </header>
+  <div class="row" id="invite" hidden></div>
+  <div class="layout">
+    <div class="board-wrap">
+      <div class="score" id="score"></div>
+      <div class="board" id="board" role="grid" aria-label="Battlefield"></div>
+      <div class="legend">
+        <span><b>Red tint</b> Redstone land</span>
+        <span><b>Blue tint</b> Lapis land</span>
+        <span><b>Diamond ore</b> +2 energy a turn for a unit standing on it</span>
+      </div>
+    </div>
+    <div class="side-col">
+      <div class="banner" id="banner"></div>
+      <div class="panel" id="hand"></div>
+      <div class="panel" id="reactPanel" hidden>
+        <h2>Send a reaction</h2>
+        <div class="react" id="react"></div>
+      </div>
+      <div class="panel">
+        <h2>Battle log</h2>
+        <ol class="log" id="log"></ol>
+      </div>
+      <details class="rules">
+        <summary>How to play</summary>
+        <ul>
+          <li><b>Mine with words.</b> Each turn, spell a word from your 7 letter blocks. Its letter points become energy. Rare letters are worth more, and 5, 6 and 7 letter words earn +3, +6 and +12 bonus energy.</li>
+          <li><b>Spend energy.</b> Build stone walls (3) in your own land, recruit a Swordsman (6) or Archer (7) next to your keep, or throw TNT (9).</li>
+          <li><b>Command units.</b> Tap a unit to see where it can move (green) and what it can hit (red). Each unit moves once, then may attack. New recruits wait a turn.</li>
+          <li><b>Swordsman:</b> 4 health, hits for 2 next to it, moves 2. <b>Archer:</b> 2 health, hits for 1 up to 3 squares away, moves 1.</li>
+          <li><b>TNT</b> lands near your keep or your units. It deals 2 damage to its square and 1 to each square beside it, friend or foe.</li>
+          <li><b>Diamond ore</b> in the middle row pays +2 energy at the start of your turn for each of your units standing on it.</li>
+          <li>Unused energy carries over, up to 10. Can't find a word? Swap your blocks for a new set.</li>
+          <li>Words not in the built-in dictionary go to your opponent to allow or reject.</li>
+          <li>Knock the enemy keep from 15 health to 0 to win.</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script src="words.js"></script>
+<script>
+(() => {
+  // ---------- constants ----------
+  const W = 9, H = 7;
+  const KEEP = { A: { x: 0, y: 3 }, B: { x: 8, y: 3 } };
+  const ORE = ["4,1", "4,3", "4,5"];
+  const UNITS = {
+    sword: { name: "Swordsman", cost: 6, hp: 4, atk: 2, move: 2, range: 1 },
+    archer: { name: "Archer", cost: 7, hp: 2, atk: 1, move: 1, range: 3 },
+  };
+  const COST = { wall: 3, tnt: 9 };
+  const WALL_HP = 3, KEEP_HP = 15, CARRY_CAP = 10, ORE_PAY = 2, RACK = 7;
+  const BONUS = { 5: 3, 6: 6, 7: 12 };
+  const VAL = { a:1,b:3,c:3,d:2,e:1,f:4,g:2,h:4,i:1,j:8,k:5,l:1,m:3,n:1,o:1,p:3,q:10,r:1,s:1,t:1,u:1,v:4,w:4,x:8,y:4,z:10 };
+  const BAG = "aaaaaaaaabbccddddeeeeeeeeeeeeffggghhiiiiiiiiijkllllmmnnnnnnooooooooppqrrrrrrssssttttttuuuuvvwwxyyz";
+  const VOWELS = "aeiou";
+  const TEAM = { A: { name: "Redstone", cls: "red" }, B: { name: "Lapis", cls: "blue" } };
+  const GAME = "games/main", REACT = "reactions/main";
+  const DICT = new Set(WORDS.split(" "));
+
+  // ---------- pixel sprites ----------
+  const PAL = { W:"#f4f4ee", L:"#b9bdc9", B:"#8a5a32", b:"#5e3b1f", G:"#f2c54b", S:"#8b8f9c", s:"#6f7380", D:"#3f434f",
+    A:"#c9a36a", R:"#d0402f", r:"#9c2a1f", K:"#262626", C:"#5fe0d6", c:"#2aa59c", g:"#5c8f41", h:"#4c7a37", d:"#3d6530", y:"#77a852" };
+  const SPR = {
+    sword: ["......WW",".....WLW","....WLW.","...WLW..","b.WLW...",".bbW....",".Gb.....","G.b....."],
+    archer: ["....BB..","..BB.W..",".B...W..","B.AAAAWL",".B...W..","..BB.W..","....BB..","........"],
+    keep: ["S.S..S.S","SSSSSSSS",".SsSSsS.",".SSDDSS.",".SDKKDS.",".sDKKDs.",".SDKKDS.",".SSSSSS."],
+    wall: ["SSsSSSDS","sSSSsSSS","SSDSSSsS","SsSSDSSS","SSSsSSDS","DSSSSsSS","SSsSSSSs","sSSDSSSS"],
+    tnt: ["RRRRRRRR","RrRRrRRr","WWWWWWWW","KWKWKWKW","WWWWWWWW","RRrRRrRR","RRRRRRRR","rRRRRRRr"],
+    stone: ["SSsSSSSS","SSSSSsSS","sSSSSSSS","SSSsSSSs","SSSSSSSS","SsSSSSsS","SSSSsSSS","SSsSSSSS"],
+    ore: ["SSsSSSSS","SCcSSsSS","sSSSSSCS","SSSsSccS","SSCSSSSS","SScSSsSS","SSSSCcSS","SSsSSSSS"],
+    grass: ["hhghhhyh","hdhhghhh","hhhyhhdh","ghhhhhhh","hhdhhghh","hyhhhhhd","hhhghhhh","dhhhhyhh"],
+    grass2: ["hhhhghhh","hyhhhhdh","hhhdhhhh","hhhhhyhg","dhhghhhh","hhhhhhdh","hghhyhhh","hhhhhhhh"],
+  };
+  const IMG = {};
+  for (const [k, rows] of Object.entries(SPR)) {
+    const c = document.createElement("canvas"); c.width = c.height = 8;
+    const x = c.getContext("2d");
+    rows.forEach((r, y) => [...r].forEach((ch, i) => { if (PAL[ch]) { x.fillStyle = PAL[ch]; x.fillRect(i, y, 1, 1); } }));
+    IMG[k] = c.toDataURL();
+  }
+  const boardEl = document.getElementById("board");
+  boardEl.style.setProperty("--grass-img", `url(${IMG.grass})`);
+  boardEl.style.setProperty("--grass-img2", `url(${IMG.grass2})`);
+  boardEl.style.setProperty("--stone-img", `url(${IMG.stone})`);
+  boardEl.style.setProperty("--ore-img", `url(${IMG.ore})`);
+
+  // ---------- helpers ----------
+  const $ = (id) => document.getElementById(id);
+  function el(tag, props = {}, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (v === false || v == null) continue;
+      if (k === "class") e.className = v;
+      else if (k === "text") e.textContent = v;
+      else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? "" : v);
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) e.append(kid.nodeType ? kid : document.createTextNode(kid));
+    return e;
+  }
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const other = (t) => (t === "A" ? "B" : "A");
+  const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  const inside = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
+  const key = (x, y) => x + "," + y;
+  const rid = () => Math.random().toString(36).slice(2, 10);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+
+  function isWord(w) {
+    if (DICT.has(w)) return true;
+    const t = [];
+    const cut = (n, add = "") => t.push(w.slice(0, -n) + add);
+    if (w.endsWith("s")) cut(1);
+    if (w.endsWith("es")) cut(2);
+    if (w.endsWith("ies")) cut(3, "y");
+    if (w.endsWith("ed")) { cut(2); cut(1); }
+    if (w.endsWith("ied")) cut(3, "y");
+    if (w.endsWith("ing")) { cut(3); cut(3, "e"); }
+    if (w.endsWith("er")) { cut(2); cut(1); }
+    if (w.endsWith("est")) { cut(3); cut(2); }
+    if (w.endsWith("ly")) cut(2);
+    for (const s of [...t]) if (s.length > 2 && s.at(-1) === s.at(-2)) t.push(s.slice(0, -1));
+    return t.some((s) => s.length >= 2 && DICT.has(s));
+  }
+  function wordValue(letters) {
+    const base = letters.reduce((n, l) => n + VAL[l], 0);
+    return { base, bonus: BONUS[letters.length] || 0, total: base + (BONUS[letters.length] || 0) };
+  }
+  function fillRack(rack) {
+    const r = rack.slice();
+    while (r.length < RACK) r.push(BAG[Math.floor(Math.random() * BAG.length)]);
+    let v = r.filter((l) => VOWELS.includes(l)).length;
+    for (let i = 0; i < r.length && v < 2; i++) if (!VOWELS.includes(r[i])) { r[i] = VOWELS[Math.floor(Math.random() * 5)]; v++; }
+    for (let i = 0; i < r.length && v > 5; i++) if (VOWELS.includes(r[i])) { r[i] = "rstnl"[Math.floor(Math.random() * 5)]; v--; }
+    return r;
+  }
+
+  // ---------- rules ----------
+  function newGame(seats, first = "A") {
+    const s = {
+      gid: rid(), seq: 0, seats, first, turn: first, round: 1, phase: "word",
+      keep: { A: KEEP_HP, B: KEEP_HP }, energy: { A: 0, B: 0 },
+      racks: { A: fillRack([]), B: fillRack([]) },
+      units: [], walls: [], pending: null, last: null, log: [], winner: null, nextId: 1,
+    };
+    addLog(s, null, "The battle begins. " + TEAM[first].name + " moves first.");
+    beginTurn(s, first);
+    return s;
+  }
+  function addLog(s, team, text) { s.log.unshift({ team, text }); s.log = s.log.slice(0, 40); }
+  function beginTurn(s, t) {
+    s.turn = t; s.phase = "word"; s.pending = null;
+    for (const u of s.units) if (u.team === t) { u.moved = false; u.attacked = false; u.fresh = false; }
+    const miners = s.units.filter((u) => u.team === t && ORE.includes(key(u.x, u.y))).length;
+    if (miners) { s.energy[t] += miners * ORE_PAY; addLog(s, t, `${TEAM[t].name} mined diamond ore for +${miners * ORE_PAY} energy.`); }
+  }
+  function endTurn(s) {
+    const t = s.turn;
+    s.energy[t] = Math.min(s.energy[t], CARRY_CAP);
+    if (other(t) === s.first) s.round++;
+    beginTurn(s, other(t));
+  }
+  function at(s, x, y) {
+    for (const t of ["A", "B"]) if (KEEP[t].x === x && KEEP[t].y === y) return { kind: "keep", team: t };
+    const u = s.units.find((u) => u.x === x && u.y === y);
+    if (u) return { kind: "unit", team: u.team, u };
+    const w = s.walls.find((w) => w.x === x && w.y === y);
+    if (w) return { kind: "wall", team: w.team, w };
+    return null;
+  }
+  const inHalf = (t, x) => (t === "A" ? x <= 3 : x >= 5);
+  function cellsWhere(fn) { const out = new Set(); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (fn(x, y)) out.add(key(x, y)); return out; }
+  function buildCells(s, t) { return cellsWhere((x, y) => inHalf(t, x) && !at(s, x, y)); }
+  function spawnCells(s, t) { const k = KEEP[t]; return cellsWhere((x, y) => Math.max(Math.abs(x - k.x), Math.abs(y - k.y)) === 1 && !at(s, x, y)); }
+  function tntCells(s, t) {
+    const mine = s.units.filter((u) => u.team === t);
+    return cellsWhere((x, y) => dist({ x, y }, KEEP[t]) <= 3 || mine.some((u) => dist(u, { x, y }) <= 2));
+  }
+  function moveSet(s, u) {
+    const out = new Set();
+    if (u.moved || u.fresh) return out;
+    let frontier = [[u.x, u.y]]; const seen = new Set([key(u.x, u.y)]);
+    for (let step = 0; step < UNITS[u.type].move; step++) {
+      const next = [];
+      for (const [x, y] of frontier) for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = x + dx, ny = y + dy, k = key(nx, ny);
+        if (!inside(nx, ny) || seen.has(k) || at(s, nx, ny)) continue;
+        seen.add(k); out.add(k); next.push([nx, ny]);
+      }
+      frontier = next;
+    }
+    return out;
+  }
+  function attackSet(s, u) {
+    if (u.attacked || u.fresh) return new Set();
+    const r = UNITS[u.type].range;
+    return cellsWhere((x, y) => { const d = dist(u, { x, y }); const o = d > 0 && d <= r && at(s, x, y); return o && o.team !== u.team; });
+  }
+  function damage(s, x, y, n) {
+    const o = at(s, x, y); if (!o) return null;
+    if (o.kind === "keep") { s.keep[o.team] = Math.max(0, s.keep[o.team] - n); return `the ${TEAM[o.team].name} keep`; }
+    const thing = o.kind === "unit" ? o.u : o.w;
+    thing.hp -= n;
+    const label = `${o.team === s.turn ? "their own" : "a " + TEAM[o.team].name} ${o.kind === "unit" ? UNITS[o.u.type].name.toLowerCase() : "wall"}`;
+    if (thing.hp <= 0) {
+      if (o.kind === "unit") s.units = s.units.filter((u) => u !== thing); else s.walls = s.walls.filter((w) => w !== thing);
+      return label + " (destroyed)";
+    }
+    return label;
+  }
+  function checkWin(s) {
+    for (const t of ["A", "B"]) if (s.keep[t] <= 0 && !s.winner) {
+      s.winner = other(t); s.phase = "over";
+      addLog(s, s.winner, `${TEAM[s.winner].name} brought down the ${TEAM[t].name} keep and won in round ${s.round}!`);
+    }
+  }
+
+  // ---------- app state ----------
+  let state = null;
+  let online = false, db = null, user = null, myId = null, readOnly = false;
+  let names = {}, net = null;
+  const ui = { pick: [], tool: null, sel: null, err: "", unknownWord: null, resetArm: false, flash: new Set() };
+  let localToken = store.get("wcs-token"); if (!localToken) { localToken = "local-" + rid(); store.set("wcs-token", localToken); }
+
+  function mySeat() {
+    if (!state) return null;
+    if (!online) return state.turn;
+    if (state.seats.A === myId) return "A";
+    if (state.seats.B === myId) return "B";
+    return null;
+  }
+  const seatsFull = () => state && state.seats.A && state.seats.B;
+  const myTurn = () => state && !state.winner && (!net || net.connected()) && !readOnly && (!online ? true : seatsFull() && mySeat() === state.turn);
+  function playerName(t) {
+    if (!state) return TEAM[t].name;
+    if (!online) return TEAM[t].name;
+    const id = state.seats[t];
+    if (!id) return "Open seat";
+    if (id === myId) return "You";
+    return names[id] || TEAM[t].name + " player";
+  }
+  function teamNoun(t) { return online ? playerName(t) : TEAM[t].name; }
+
+  // ---------- persistence ----------
+  let pendingWrites = 0, stash = null;
+  function commit(next) {
+    next.seq = (state && state.gid === next.gid ? state.seq : next.seq || 0) + 1;
+    const before = state;
+    state = next;
+    markFlash(before, next);
+    render();
+    if (!online) { store.set("wcs-local", JSON.stringify(next)); return; }
+    pendingWrites++;
+    const body = clone(next);
+    writeChain = writeChain.then(() => db.doc(GAME).set(body)).catch((e) => {
+      if (e && e.code === "invalid_argument") { readOnly = true; toast("You can watch this battle but not play. Ask the owner to share it with you as an Editor."); }
+      else toast("That move didn't save. Check your connection and try again.");
+    }).finally(() => {
+      pendingWrites--;
+      if (!pendingWrites && stash) { const s = stash; stash = null; applyRemote(s); }
+    });
+  }
+  let writeChain = Promise.resolve();
+  function applyRemote(data) {
+    if (!data) { state = null; render(); return; }
+    if (state && data.gid === state.gid && data.seq < state.seq) return;
+    const before = state;
+    state = clone(data);
+    if (before && (before.turn !== state.turn || before.gid !== state.gid)) resetUi();
+    if (before && before.gid === state.gid) markFlash(before, state);
+    refreshNames();
+    render();
+  }
+  function markFlash(a, b) {
+    ui.flash = new Set();
+    if (!a || a.gid !== b.gid) return;
+    const sig = (s) => { const m = new Map(); s.units.forEach((u) => m.set(key(u.x, u.y), "u" + u.id + ":" + u.hp)); s.walls.forEach((w) => m.set(key(w.x, w.y), "w" + w.hp)); m.set("k", s.keep.A + ":" + s.keep.B); return m; };
+    const sa = sig(a), sb = sig(b);
+    for (const [k, v] of sb) if (k !== "k" && sa.get(k) !== v) ui.flash.add(k);
+    for (const [k] of sa) if (k !== "k" && !sb.has(k)) ui.flash.add(k);
+    if (a.keep.A !== b.keep.A) ui.flash.add(key(KEEP.A.x, KEEP.A.y));
+    if (a.keep.B !== b.keep.B) ui.flash.add(key(KEEP.B.x, KEEP.B.y));
+  }
+  function resetUi() { ui.pick = []; ui.tool = null; ui.sel = null; ui.err = ""; ui.unknownWord = null; }
+  async function refreshNames() {
+    if (!user || !state) return;
+    const ids = [state.seats.A, state.seats.B].filter((id) => id && !id.startsWith("local-"));
+    if (!ids.length) return;
+    try {
+      const ps = await user.profiles(ids);
+      let changed = false;
+      for (const id of ids) { const n = (ps[id] && ps[id].name) || ""; if (n && names[id] !== n) { names[id] = n; changed = true; } }
+      if (changed) render();
+    } catch {}
+  }
+
+  // ---------- actions ----------
+  function act(fn) {
+    if (!myTurn()) return;
+    const s = clone(state);
+    const msg = fn(s);
+    if (typeof msg === "string") { ui.err = msg; render(); return; }
+    ui.err = "";
+    checkWin(s);
+    commit(s);
+  }
+  function submitWord(force = false) {
+    const t = state.turn, rack = state.racks[t];
+    const letters = ui.pick.map((i) => rack[i]);
+    const word = letters.join("");
+    if (letters.length < 2) { ui.err = "Words need at least 2 letters."; render(); return; }
+    if (!force && !isWord(word)) {
+      if (online) {
+        const s = clone(state); s.phase = "review"; s.pending = { word, idxs: ui.pick.slice() };
+        addLog(s, t, `${TEAM[t].name} asked to play “${word.toUpperCase()}”.`);
+        ui.err = ""; commit(s); return;
+      }
+      ui.unknownWord = word; ui.err = ""; render(); return;
+    }
+    const idxs = ui.pick.slice();
+    resetUi();
+    act((s) => applyWord(s, t, idxs));
+  }
+  function applyWord(s, t, idxs) {
+    const rack = s.racks[t];
+    const letters = idxs.map((i) => rack[i]);
+    const v = wordValue(letters);
+    s.energy[t] += v.total;
+    s.racks[t] = fillRack(rack.filter((_, i) => !idxs.includes(i)));
+    s.last = { team: t, word: letters.join(""), value: v.total };
+    s.phase = "act"; s.pending = null;
+    addLog(s, t, `${TEAM[t].name} spelled ${letters.join("").toUpperCase()} for ${v.total} energy${v.bonus ? ` (+${v.bonus} length bonus)` : ""}.`);
+  }
+  function swapTiles() {
+    resetUi();
+    act((s) => { s.racks[s.turn] = fillRack([]); s.phase = "act"; s.last = { team: s.turn, word: "", value: 0 }; addLog(s, s.turn, `${TEAM[s.turn].name} swapped their letter blocks.`); });
+  }
+  function reviewWord(allow) {
+    const s = clone(state), t = s.turn;
+    if (s.phase !== "review" || !s.pending) return;
+    if (allow) { addLog(s, other(t), `${TEAM[other(t)].name} allowed “${s.pending.word.toUpperCase()}”.`); applyWord(s, t, s.pending.idxs); }
+    else { addLog(s, other(t), `${TEAM[other(t)].name} rejected “${s.pending.word.toUpperCase()}”.`); s.phase = "word"; s.pending = null; }
+    commit(s);
+  }
+  function cellClick(x, y) {
+    if (!myTurn() || state.phase !== "act") return;
+    const t = state.turn, k = key(x, y);
+    if (ui.tool) {
+      const tool = ui.tool;
+      act((s) => {
+        if (tool === "wall") {
+          if (s.energy[t] < COST.wall) return "Not enough energy for a wall.";
+          if (!buildCells(s, t).has(k)) return "Walls go on empty squares in your own land.";
+          s.energy[t] -= COST.wall; s.walls.push({ x, y, team: t, hp: WALL_HP });
+          addLog(s, t, `${TEAM[t].name} built a stone wall.`);
+        } else if (tool === "tnt") {
+          if (s.energy[t] < COST.tnt) return "Not enough energy for TNT.";
+          if (!tntCells(s, t).has(k)) return "TNT must land within 3 squares of your keep or 2 of one of your units.";
+          s.energy[t] -= COST.tnt;
+          const hits = [damage(s, x, y, 2)];
+          for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) if (inside(x + dx, y + dy)) hits.push(damage(s, x + dx, y + dy, 1));
+          const hit = hits.filter(Boolean);
+          addLog(s, t, `${TEAM[t].name} set off TNT${hit.length ? ", hitting " + hit.join(", ") : " on empty ground"}.`);
+        } else {
+          const u = UNITS[tool];
+          if (s.energy[t] < u.cost) return `Not enough energy for a ${u.name.toLowerCase()}.`;
+          if (!spawnCells(s, t).has(k)) return "Recruits must appear on an empty square touching your keep.";
+          s.energy[t] -= u.cost;
+          s.units.push({ id: s.nextId++, team: t, type: tool, x, y, hp: u.hp, moved: true, attacked: true, fresh: true });
+          addLog(s, t, `${TEAM[t].name} recruited a ${u.name.toLowerCase()}.`);
+        }
+      });
+      const cost = ui.tool === "wall" || ui.tool === "tnt" ? COST[ui.tool] : UNITS[ui.tool].cost;
+      if (!ui.err && (state.energy[t] < cost || ui.tool !== "wall")) ui.tool = null;
+      render();
+      return;
+    }
+    const o = at(state, x, y);
+    const sel = ui.sel != null ? state.units.find((u) => u.id === ui.sel) : null;
+    if (sel) {
+      if (moveSet(state, sel).has(k)) {
+        act((s) => { const u = s.units.find((u) => u.id === sel.id); u.x = x; u.y = y; u.moved = true; addLog(s, t, `${TEAM[t].name} moved a ${UNITS[u.type].name.toLowerCase()}.`); });
+        return;
+      }
+      if (attackSet(state, sel).has(k)) {
+        act((s) => {
+          const u = s.units.find((u) => u.id === sel.id);
+          u.moved = true; u.attacked = true;
+          const what = damage(s, x, y, UNITS[u.type].atk);
+          addLog(s, t, `${TEAM[t].name}'s ${UNITS[u.type].name.toLowerCase()} hit ${what} for ${UNITS[u.type].atk}.`);
+        });
+        if (!state.units.find((u) => u.id === sel.id && !u.attacked)) ui.sel = null;
+        render();
+        return;
+      }
+    }
+    if (o && o.kind === "unit" && o.team === t) { ui.sel = ui.sel === o.u.id ? null : o.u.id; ui.err = ""; }
+    else ui.sel = null;
+    render();
+  }
+
+  // ---------- render ----------
+  function render() {
+    renderInvite(); renderMode(); renderScore(); renderBoard(); renderBanner(); renderHand(); renderLog(); renderReact();
+  }
+  function renderMode() {
+    $("mode").textContent = !online ? "Pass-and-play on this device" : readOnly ? "Watching" : mySeat() ? `Online · you are ${TEAM[mySeat()].name}` : "Online";
+  }
+  function renderScore() {
+    const box = $("score"); box.replaceChildren();
+    if (!state) return;
+    const card = (t) => el("div", { class: `team ${TEAM[t].cls}${state.turn === t && !state.winner && (seatsFull() || !online) ? " active" : ""}` },
+      el("div", { class: "side", text: TEAM[t].name + (state.turn === t && !state.winner ? " · turn" : "") }),
+      el("div", { class: "who", text: playerName(t) }),
+      el("div", { class: "hp", "aria-label": `Keep health ${state.keep[t]} of ${KEEP_HP}` }, Array.from({ length: KEEP_HP }, (_, i) => el("i", { class: i < state.keep[t] ? "on" : "" }))),
+      el("div", { class: "stats" }, el("span", { text: `Keep ${state.keep[t]}/${KEEP_HP}` }), el("span", { class: "en", text: `⚡ ${state.energy[t]}` })));
+    box.append(card("A"), el("div", { class: "vs", text: `R${state.round}` }), card("B"));
+  }
+  function renderBoard() {
+    boardEl.replaceChildren();
+    const s = state || newGame({ A: null, B: null });
+    const t = s.turn;
+    let hl = {}, sel = null;
+    if (state && myTurn() && s.phase === "act") {
+      if (ui.tool === "wall") buildCells(s, t).forEach((k) => (hl[k] = "hl-place"));
+      else if (ui.tool === "tnt") tntCells(s, t).forEach((k) => (hl[k] = "hl-blast"));
+      else if (ui.tool) spawnCells(s, t).forEach((k) => (hl[k] = "hl-place"));
+      else if (ui.sel != null && (sel = s.units.find((u) => u.id === ui.sel))) {
+        moveSet(s, sel).forEach((k) => (hl[k] = "hl-move"));
+        attackSet(s, sel).forEach((k) => (hl[k] = "hl-hit"));
+        hl[key(sel.x, sel.y)] = "hl-sel";
+      }
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = key(x, y), o = at(s, x, y);
+      const cls = ["cell", (x + y) % 2 ? "c1" : "", x === 4 ? (ORE.includes(k) ? "ore" : "mid") : "", x <= 3 ? "half-A" : x >= 5 ? "half-B" : "", hl[k] || "", ui.flash.has(k) ? "flash" : ""];
+      let label = `Column ${x + 1}, row ${y + 1}`;
+      const kids = [];
+      if (o && o.kind === "keep") {
+        cls.push("keep");
+        kids.push(el("div", { class: "plate " + o.team }), el("img", { src: IMG.keep, alt: "" }), el("span", { class: "num", text: s.keep[o.team] }));
+        label += `: ${TEAM[o.team].name} keep, ${s.keep[o.team]} health`;
+      } else if (o && o.kind === "wall") {
+        kids.push(el("img", { src: IMG.wall, alt: "", style: "inset:0;width:100%;height:100%" }), pips(o.w.hp, WALL_HP));
+        label += `: ${TEAM[o.team].name} wall, ${o.w.hp} health`;
+      } else if (o && o.kind === "unit") {
+        const u = o.u;
+        if (u.team === s.turn && (u.fresh || (u.moved && u.attacked))) cls.push("spent");
+        kids.push(el("div", { class: "plate " + u.team }), el("img", { src: IMG[u.type], alt: "" }), pips(u.hp, UNITS[u.type].hp));
+        label += `: ${TEAM[u.team].name} ${UNITS[u.type].name}, ${u.hp} health`;
+      } else if (ORE.includes(k)) label += ": diamond ore";
+      const clickable = state && myTurn() && s.phase === "act" && (hl[k] || (o && o.kind === "unit" && o.team === t) || ui.sel != null || ui.tool);
+      if (clickable) cls.push("clickable");
+      const b = el("button", { class: cls.filter(Boolean).join(" "), "aria-label": label, type: "button", onclick: () => cellClick(x, y) }, kids);
+      if (!clickable) b.tabIndex = -1;
+      boardEl.append(b);
+    }
+    ui.flash = new Set();
+  }
+  function pips(n, max) { return el("div", { class: "pips" }, Array.from({ length: max }, (_, i) => el("i", { class: i < n ? "on" : "" }))); }
+  function tileEl(letter, opts = {}) {
+    const v = VAL[letter];
+    return el(opts.mini ? "span" : "button", { class: `tile${opts.mini ? " mini" : ""} ${v >= 8 ? "t8" : v >= 4 ? "t4" : v >= 2 ? "t2" : ""}${opts.used ? " used" : ""}`,
+      type: opts.mini ? null : "button", "aria-label": `${letter.toUpperCase()}, ${v} point${v > 1 ? "s" : ""}`, onclick: opts.onclick, disabled: opts.used || null },
+      letter, el("small", { text: v }));
+  }
+  function wordTiles(word) { return el("span", { class: "tiles", style: "min-height:0;gap:3px" }, [...word].map((l) => tileEl(l, { mini: true }))); }
+
+  function renderBanner() {
+    const b = $("banner"); b.replaceChildren();
+    const H2 = (t) => el("div", { class: "headline", text: t });
+    const sub = (t) => el("div", { class: "sub", text: t });
+    if (!state) { b.append(H2("No battle yet."), sub(net ? "Connecting to your opponent. They need to have the game open too." : "Start one, then share this page with your opponent using the Share button. Invite them as an Editor so they can make moves.")); return; }
+    const t = state.turn;
+    if (state.winner) {
+      const w = state.winner;
+      b.append(H2(online && mySeat() === w ? "Victory! You took the keep." : online && mySeat() ? `${playerName(w)} wins this one.` : `${TEAM[w].name} wins!`),
+        sub(`The ${TEAM[other(w)].name} keep fell in round ${state.round}. Rematch to swap who goes first.`));
+      return;
+    }
+    if (online && !seatsFull()) {
+      const open = state.seats.A ? "B" : "A";
+      b.append(H2(mySeat() ? "Waiting for your opponent to join." : `The ${TEAM[open].name} seat is open.`),
+        sub(mySeat() ? (net ? "Send them the invite link at the top. Keep this page open." : "Share this page with them (Share button, invite as Editor). The battle starts the moment they pick a side.") : "Take the open side to start the battle."));
+      return;
+    }
+    if (state.phase === "review") {
+      const w = state.pending.word.toUpperCase();
+      if (mySeat() === other(t)) b.append(H2(`${playerName(t)} wants to play “${w}”.`), sub("It isn't in the built-in dictionary. Is it a real word?"));
+      else b.append(H2(`Waiting for ${playerName(other(t))} to allow “${w}”.`), sub("It isn't in the built-in dictionary, so your opponent decides."));
+    } else if (myTurn()) {
+      const who = online ? "Your turn" : `${TEAM[t].name}'s turn`;
+      b.append(H2(state.phase === "word" ? `${who}: spell a word to mine energy.` : `${who}: you have ⚡ ${state.energy[t]} to spend.`),
+        sub(state.phase === "word" ? "Longer words and rarer letters pay more." : "Build, recruit and throw TNT, then tap a unit to move and attack. End your turn when you're done."));
+    } else if (online && mySeat()) {
+      b.append(H2(`${playerName(t)} is ${state.phase === "word" ? "thinking of a word" : "making moves"}…`), sub("Their moves appear on the board as they make them."));
+    } else {
+      b.append(H2(`${TEAM[t].name} to move.`), sub("You're watching this battle."));
+    }
+    if (state.last && state.last.word) {
+      b.append(el("div", { class: "lastword" }, `Last word by ${teamNoun(state.last.team)}:`, wordTiles(state.last.word), el("b", { text: `+${state.last.value} ⚡`, style: "color:var(--gold)" })));
+    }
+  }
+
+  function renderHand() {
+    const h = $("hand"); h.replaceChildren();
+    if (!state && net) { h.append(el("h2", { text: "Connecting" }), el("p", { class: "hint", text: "This can take a few seconds." })); return; }
+    if (!state) {
+      h.append(el("h2", { text: "New battle" }), el("p", { class: "hint", text: "You'll play Redstone (red). Your opponent joins as Lapis (blue)." }),
+        el("div", { class: "row" }, el("button", { class: "btn go big", type: "button", onclick: startBattle, text: "Start a battle" })));
+      return;
+    }
+    if (state.winner) {
+      h.append(el("h2", { text: "Game over" }), el("div", { class: "row" },
+        (!online || mySeat()) && el("button", { class: "btn go big", type: "button", text: "Rematch", onclick: rematch })));
+      return;
+    }
+    if (online && !seatsFull()) {
+      h.append(el("h2", { text: "Pick a side" }));
+      const row = el("div", { class: "row" });
+      if (!mySeat()) for (const t of ["A", "B"]) if (!state.seats[t]) row.append(el("button", { class: `btn big ${t === "A" ? "warn" : "blue"}`, type: "button", text: `Join as ${TEAM[t].name}`, onclick: () => claim(t) }));
+      if (mySeat()) row.append(el("span", { class: "hint", text: `You're ${TEAM[mySeat()].name}. Waiting for the other side…` }));
+      h.append(row, resetRow() || "");
+      return;
+    }
+    const t = state.turn;
+    if (state.phase === "review") {
+      if (mySeat() === other(t) && !readOnly) {
+        h.append(el("h2", { text: "Your call" }), wordTiles(state.pending.word),
+          el("div", { class: "row" }, el("button", { class: "btn go", type: "button", text: "Allow it", onclick: () => reviewWord(true) }), el("button", { class: "btn warn", type: "button", text: "Reject", onclick: () => reviewWord(false) })));
+      } else h.append(el("h2", { text: "Waiting" }), el("p", { class: "hint", text: "Your opponent is deciding whether your word counts." }));
+      return;
+    }
+    if (!myTurn()) {
+      h.append(el("h2", { text: "Your blocks" }));
+      const seat = mySeat();
+      if (seat) h.append(el("div", { class: "tiles" }, state.racks[seat].map((l) => tileEl(l, { mini: true }))), el("p", { class: "hint", text: "Plan your next word while you wait." }));
+      else h.append(el("p", { class: "hint", text: "Only the two players see their blocks." }));
+      h.append(resetRow() || "");
+      return;
+    }
+    if (state.phase === "word") {
+      const rack = state.racks[t];
+      const letters = ui.pick.map((i) => rack[i]);
+      const v = wordValue(letters);
+      h.append(el("h2", { text: online ? "Spell a word" : `${TEAM[t].name}: spell a word` }));
+      h.append(el("div", { class: "tiles slot-row" }, ui.pick.map((i, n) => tileEl(rack[i], { onclick: () => { ui.pick.splice(n, 1); ui.unknownWord = null; render(); } }))));
+      h.append(el("div", { class: "tiles" }, rack.map((l, i) => tileEl(l, { used: ui.pick.includes(i), onclick: () => { ui.pick.push(i); ui.err = ""; ui.unknownWord = null; render(); } }))));
+      h.append(el("div", { class: "err", text: ui.err }));
+      if (ui.unknownWord) {
+        h.append(el("div", { class: "row" }, el("span", { class: "hint", text: `“${ui.unknownWord.toUpperCase()}” isn't in the dictionary.` }),
+          el("button", { class: "btn", type: "button", text: "Count it anyway", onclick: () => submitWord(true) })));
+      }
+      h.append(el("div", { class: "row" },
+        el("button", { class: "btn go big", type: "button", disabled: letters.length < 2 || null, onclick: () => submitWord(), text: letters.length >= 2 ? `Mine it · +${v.total} ⚡` : "Mine it" }),
+        el("button", { class: "btn ghost", type: "button", text: "Shuffle", onclick: shuffleRack }),
+        el("button", { class: "btn ghost", type: "button", text: "Clear", onclick: () => { ui.pick = []; ui.unknownWord = null; render(); } }),
+        el("button", { class: "btn ghost", type: "button", text: "Swap blocks", onclick: swapTiles })));
+      h.append(el("p", { class: "hint", text: "Tip: type on your keyboard to pick letters, Backspace to undo, Enter to mine. Swapping skips the energy for this turn." }));
+      return;
+    }
+    // act phase
+    const e = state.energy[t];
+    const tool = (id, img, name, cost, desc) => el("button", { class: `tool${ui.tool === id ? " on" : ""}`, type: "button", disabled: e < cost || null,
+      onclick: () => { ui.tool = ui.tool === id ? null : id; ui.sel = null; ui.err = ""; render(); } },
+      el("img", { src: IMG[img], alt: "" }), el("b", {}, name + " ", el("span", { class: "cost", text: `⚡${cost}` })), el("span", { text: desc }));
+    h.append(el("div", { class: "row", style: "justify-content:space-between" }, el("h2", { text: "Orders" }), el("div", { class: "energy", text: `⚡ ${e}` })));
+    h.append(el("div", { class: "tools" },
+      tool("wall", "wall", "Wall", COST.wall, "Blocks a square in your land"),
+      tool("sword", "sword", "Swordsman", UNITS.sword.cost, "4 health · hits 2 · moves 2"),
+      tool("archer", "archer", "Archer", UNITS.archer.cost, "2 health · hits 1 at range 3"),
+      tool("tnt", "tnt", "TNT", COST.tnt, "2 damage + 1 to neighbors")));
+    let hint = "Pick an order above, or tap one of your units on the board.";
+    if (ui.tool === "wall") hint = "Tap a yellow-outlined square in your land to build. Tap Wall again to stop.";
+    else if (ui.tool === "tnt") hint = "Tap an orange-outlined square to blow it up. Careful, it hurts your own units too.";
+    else if (ui.tool) hint = `Tap a yellow-outlined square next to your keep to place the ${UNITS[ui.tool].name.toLowerCase()}.`;
+    else if (ui.sel != null) { const u = state.units.find((u) => u.id === ui.sel); if (u) hint = `${UNITS[u.type].name} selected: green squares to move, red outlines to attack.`; }
+    h.append(el("p", { class: "hint", text: hint }), el("div", { class: "err", text: ui.err }));
+    h.append(el("div", { class: "row" }, el("button", { class: "btn warn big", type: "button", text: "End turn", onclick: () => { resetUi(); act((s) => { addLog(s, s.turn, `${TEAM[s.turn].name} ended their turn.`); endTurn(s); }); } }),
+      e > CARRY_CAP ? el("span", { class: "hint", text: `Only ${CARRY_CAP} energy carries over.` }) : null));
+  }
+  function resetRow() {
+    if (online && !mySeat()) return null;
+    return el("div", { class: "row" }, el("button", { class: "btn ghost", type: "button", text: ui.resetArm ? "Tap again to wipe this battle" : "Restart battle",
+      onclick: () => {
+        if (!ui.resetArm) { ui.resetArm = true; render(); setTimeout(() => { ui.resetArm = false; render(); }, 4000); return; }
+        ui.resetArm = false; resetUi(); commit(newGame(online ? clone(state.seats) : { A: "local", B: "local" }));
+      } }));
+  }
+  function renderLog() {
+    const l = $("log"); l.replaceChildren();
+    if (!state || !state.log.length) { l.append(el("li", { text: "Moves will show up here." })); return; }
+    for (const e of state.log.slice(0, 20)) l.append(el("li", { class: e.team || "", text: e.text }));
+  }
+  function shuffleRack() {
+    const rack = state.racks[state.turn];
+    const order = rack.map((_, i) => i).sort(() => Math.random() - 0.5);
+    const s = clone(state); s.racks[s.turn] = order.map((i) => rack[i]);
+    ui.pick = []; ui.unknownWord = null;
+    commit(s);
+  }
+  function startBattle() { resetUi(); commit(newGame({ A: myId, B: null })); }
+  function claim(t) { const s = clone(state); s.seats[t] = myId; addLog(s, t, `${TEAM[t].name} joined the battle.`); commit(s); }
+  function rematch() { const first = other(state.first); resetUi(); commit(newGame(online ? clone(state.seats) : { A: "local", B: "local" }, first)); }
+
+  // ---------- reactions ----------
+  const REACTIONS = ["❤️", "😘", "😂", "🔥", "😱", "💀"];
+  let lastReact = 0, reactSeen = null;
+  function renderReact() {
+    const p = $("reactPanel");
+    p.hidden = !(online && mySeat() && !readOnly);
+    const r = $("react");
+    if (r.childElementCount) return;
+    for (const e of REACTIONS) r.append(el("button", { type: "button", "aria-label": "Send " + e, text: e, onclick: () => sendReact(e) }));
+  }
+  function sendReact(e) {
+    if (!db || Date.now() - lastReact < 700) return;
+    lastReact = Date.now();
+    floaty(e, "You");
+    db.doc(REACT).set({ by: myId, kind: e, at: Date.now(), n: rid() }).catch(() => {});
+  }
+  function floaty(e, who) {
+    const f = el("div", { class: "floaty", style: `left:${10 + Math.random() * 70}vw` }, e, el("small", { text: who }));
+    document.body.append(f);
+    setTimeout(() => f.remove(), 2500);
+  }
+  let toastTimer;
+  function toast(msg) {
+    document.querySelectorAll(".toast").forEach((t) => t.remove());
+    const t = el("div", { class: "toast", role: "status", text: msg });
+    document.body.append(t);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 5000);
+  }
+
+  // ---------- keyboard ----------
+  document.addEventListener("keydown", (ev) => {
+    if (!state || !myTurn() || state.phase !== "word" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const rack = state.racks[state.turn];
+    if (/^[a-z]$/i.test(ev.key)) {
+      const i = rack.findIndex((l, i) => l === ev.key.toLowerCase() && !ui.pick.includes(i));
+      if (i >= 0) { ui.pick.push(i); ui.err = ""; ui.unknownWord = null; render(); }
+    } else if (ev.key === "Backspace") { ui.pick.pop(); ui.unknownWord = null; render(); ev.preventDefault(); }
+    else if (ev.key === "Enter" && ui.pick.length >= 2 && !(ev.target && ev.target.tagName === "BUTTON")) { submitWord(); ev.preventDefault(); }
+  });
+
+  // ---------- invite-link play (pages hosted outside Claude) ----------
+  // A two-browser stand-in for the Claude db: each side keeps a copy, the newest revision wins.
+  function peerDb(code, hosting) {
+    const listeners = {}, sk = "kd-room-" + code;
+    let docs = {}, conn = null, peer = null;
+    try { docs = JSON.parse(store.get(sk) || "{}"); } catch {}
+    const snap = (path) => ({ exists: !!docs[path], data: () => docs[path].data });
+    const fire = (path) => (listeners[path] || []).forEach((fn) => fn(snap(path)));
+    const send = (msg) => { if (conn && conn.open) conn.send(msg); };
+    function receive(all) {
+      for (const path of [GAME, REACT]) {
+        const d = all && all[path];
+        if (!d || typeof d.rev !== "number" || !d.data || (docs[path] && docs[path].rev >= d.rev)) continue;
+        docs[path] = d; store.set(sk, JSON.stringify(docs)); fire(path);
+      }
+    }
+    function attach(c) {
+      const old = conn; conn = c;
+      if (old && old !== c) old.close();
+      c.on("open", () => { c.send(docs); render(); });
+      c.on("data", (all) => { if (c === conn) receive(all); });
+      c.on("close", () => { if (c === conn) { conn = null; render(); } });
+      c.on("error", () => {});
+    }
+    function open() {
+      const p = peer = hosting ? new Peer("kdgame1-" + code) : new Peer();
+      p.on("connection", (c) => { if (hosting) attach(c); });
+      p.on("open", dial);
+      p.on("disconnected", () => { if (!p.destroyed) setTimeout(() => { if (p === peer && !p.destroyed && p.disconnected) p.reconnect(); }, 2000); });
+      p.on("error", (e) => {
+        if (e.type === "peer-unavailable") { conn = null; return; }
+        if (e.type === "unavailable-id" || p.destroyed) { p.destroy(); setTimeout(() => { if (p === peer) open(); }, 3000); }
+      });
+    }
+    let dialed = 0;
+    function dial() {
+      if (hosting || (conn && conn.open) || !peer || !peer.open || Date.now() - dialed < 8000) return;
+      dialed = Date.now();
+      attach(peer.connect("kdgame1-" + code, { reliable: true }));
+    }
+    setInterval(dial, 2000);
+    open();
+    return {
+      connected: () => !!(conn && conn.open),
+      doc: (path) => ({
+        set: async (data) => { docs[path] = { rev: ((docs[path] && docs[path].rev) || 0) + 1, data }; store.set(sk, JSON.stringify(docs)); send({ [path]: docs[path] }); },
+        onSnapshot: (fn) => { (listeners[path] = listeners[path] || []).push(fn); fn(snap(path)); },
+      }),
+    };
+  }
+  function joinRoom(code, hosting) {
+    net = db = peerDb(code, hosting); online = true; myId = localToken;
+    state = null; resetUi();
+    subscribe();
+    if (hosting && !state) startBattle();
+    render();
+  }
+  function createRoom() {
+    const code = [...crypto.getRandomValues(new Uint8Array(10))].map((n) => n.toString(16).padStart(2, "0")).join("");
+    store.set("kd-host-" + code, "1");
+    history.replaceState(null, "", "#" + code);
+    joinRoom(code, true);
+  }
+  function renderInvite() {
+    const box = $("invite"); box.replaceChildren();
+    box.hidden = !!window.claude || !window.Peer;
+    if (box.hidden) return;
+    if (!net) { box.append(el("button", { class: "btn go big", type: "button", text: "Play online: make an invite link", onclick: createRoom })); return; }
+    box.append(el("button", { class: "btn", type: "button", text: "Copy invite link", onclick: () => navigator.clipboard.writeText(location.href).then(() => toast("Invite link copied."), () => toast("Copy the address from your browser's address bar.")) }),
+      el("span", { class: "hint", text: net.connected() ? "Connected" : "Not connected. Both of you need the game open." }));
+  }
+
+  // ---------- boot ----------
+  function startLocal(saved) {
+    try { state = saved || JSON.parse(store.get("wcs-local") || "null"); } catch { state = null; }
+    if (!state || !state.racks) state = newGame({ A: "local", B: "local" });
+    render();
+  }
+  window.claude?.hot?.snapshot?.(() => ({ local: online ? null : state }));
+  const hotData = window.claude?.hot?.data;
+  startLocal(hotData && hotData.local);
+
+  function subscribe() {
+    db.doc(GAME).onSnapshot((snap) => {
+      const data = snap.exists ? snap.data() : null;
+      if (pendingWrites) { stash = data; return; }
+      applyRemote(data);
+    }, () => toast("Lost the live connection to the battle. Reload the page to reconnect."));
+    db.doc(REACT).onSnapshot((snap) => {
+      if (!snap.exists) { reactSeen = reactSeen || "none"; return; }
+      const r = snap.data();
+      if (reactSeen === null) { reactSeen = r.n; return; }
+      if (r.n === reactSeen) return;
+      reactSeen = r.n;
+      if (r.by !== myId) floaty(r.kind, state ? playerName(state.seats.A === r.by ? "A" : "B") : "Opponent");
+    }, () => {});
+  }
+  const room = location.hash.slice(1);
+  if (!window.claude && window.Peer && /^[0-9a-f]{20}$/.test(room)) joinRoom(room, store.get("kd-host-" + room) === "1");
+  (async () => {
+    if (!window.claude || !window.claude.use) return;
+    const [d, u] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+    if (!d) return;
+    db = d; user = u; online = true;
+    myId = (u && (await u.id())) || localToken;
+    state = null; resetUi(); render();
+    subscribe();
+  })();
+})();
+</script>
+</body></html>
