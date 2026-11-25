@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style><script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style><script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script></head><body>
 <title>KD Game 1</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -133,7 +133,7 @@ h1 span { color: var(--gold); }
 
 .tiles { display: flex; flex-wrap: wrap; gap: 6px; min-height: 50px; }
 .slot-row { min-height: 54px; padding: 6px; background: #0c0d13; border: 2px solid #0a0b10; box-shadow: inset 0 0 0 2px var(--line); }
-.slot-row:empty::before { content: "Tap blocks or type to spell a word"; color: var(--muted); font-size: 13px; align-self: center; padding-left: 6px; }
+.slot-row:empty::before { content: "Tap blocks to spell a word"; color: var(--muted); font-size: 13px; align-self: center; padding-left: 6px; }
 .tile {
   --speck: #6c707c;
   width: 44px; height: 44px; position: relative; border: 0; cursor: pointer;
@@ -214,6 +214,30 @@ details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px
   .tools { grid-template-columns: minmax(0, 1fr); }
   .score { grid-template-columns: 1fr 1fr; }
   .vs { display: none; }
+}
+button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.keys { display: inline; }
+@media (hover: none) { .keys { display: none; } .tile:not(.used):not(.mini):hover { filter: none; } }
+@media (max-width: 600px) {
+  .app { padding-block: 10px 28px; gap: 10px; }
+  h1 { font-size: 24px; }
+  .mode { font-size: 12px; }
+  .layout, .board-wrap, .side-col { gap: 10px; }
+  .team { padding: 6px 8px; gap: 3px; }
+  .team .who { font-size: 15px; }
+  .score { gap: 8px; }
+  .legend, .banner .sub { display: none; }
+  .banner { padding: 8px 12px; }
+  .banner .headline { font-size: 17px; }
+  .panel { padding: 10px; gap: 10px; }
+  .tiles.rack, .tiles.slot-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .tiles.rack .tile, .tiles.slot-row .tile { width: 100%; height: auto; aspect-ratio: 1; }
+  .slot-row:empty::before { grid-column: 1 / -1; }
+  .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tool { grid-template-columns: 28px minmax(0, 1fr); padding: 6px; }
+  .tool img { width: 28px; height: 28px; }
+  .btn { min-height: 44px; }
+  .react button { width: 44px; height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cell.hl-hit::after, .cell.flash, .floaty { animation: none; }
@@ -777,7 +801,7 @@ details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px
       const v = wordValue(letters);
       h.append(el("h2", { text: online ? "Spell a word" : `${TEAM[t].name}: spell a word` }));
       h.append(el("div", { class: "tiles slot-row" }, ui.pick.map((i, n) => tileEl(rack[i], { onclick: () => { ui.pick.splice(n, 1); ui.unknownWord = null; render(); } }))));
-      h.append(el("div", { class: "tiles" }, rack.map((l, i) => tileEl(l, { used: ui.pick.includes(i), onclick: () => { ui.pick.push(i); ui.err = ""; ui.unknownWord = null; render(); } }))));
+      h.append(el("div", { class: "tiles rack" }, rack.map((l, i) => tileEl(l, { used: ui.pick.includes(i), onclick: () => { ui.pick.push(i); ui.err = ""; ui.unknownWord = null; render(); } }))));
       h.append(el("div", { class: "err", text: ui.err }));
       if (ui.unknownWord) {
         h.append(el("div", { class: "row" }, el("span", { class: "hint", text: `“${ui.unknownWord.toUpperCase()}” isn't in the dictionary.` }),
@@ -788,7 +812,7 @@ details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px
         el("button", { class: "btn ghost", type: "button", text: "Shuffle", onclick: shuffleRack }),
         el("button", { class: "btn ghost", type: "button", text: "Clear", onclick: () => { ui.pick = []; ui.unknownWord = null; render(); } }),
         el("button", { class: "btn ghost", type: "button", text: "Swap blocks", onclick: swapTiles })));
-      h.append(el("p", { class: "hint", text: "Tip: type on your keyboard to pick letters, Backspace to undo, Enter to mine. Swapping skips the energy for this turn." }));
+      h.append(el("p", { class: "hint" }, el("span", { class: "keys", text: "Tip: type on your keyboard to pick letters, Backspace to undo, Enter to mine. " }), "Swapping skips the energy for this turn."));
       return;
     }
     // act phase
@@ -884,7 +908,10 @@ details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px
     const snap = (path) => ({ exists: !!docs[path], data: () => docs[path].data });
     const fire = (path) => (listeners[path] || []).forEach((fn) => fn(snap(path)));
     const send = (msg) => { if (conn && conn.open) conn.send(msg); };
+    let heard = 0;
     function receive(all) {
+      heard = Date.now();
+      if (all && all.ping) { send({ pong: 1 }); return; }
       for (const path of [GAME, REACT]) {
         const d = all && all[path];
         if (!d || typeof d.rev !== "number" || !d.data || (docs[path] && docs[path].rev >= d.rev)) continue;
@@ -894,7 +921,7 @@ details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px
     function attach(c) {
       const old = conn; conn = c;
       if (old && old !== c) old.close();
-      c.on("open", () => { c.send(docs); render(); });
+      c.on("open", () => { heard = Date.now(); c.send(docs); render(); });
       c.on("data", (all) => { if (c === conn) receive(all); });
       c.on("close", () => { if (c === conn) { conn = null; render(); } });
       c.on("error", () => {});
@@ -915,8 +942,19 @@ details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px
       dialed = Date.now();
       attach(peer.connect("kdgame1-" + code, { reliable: true }));
     }
-    setInterval(dial, 2000);
+    function keepAlive() {
+      if (!peer || peer.destroyed) { open(); return; }
+      if (peer.disconnected) { try { peer.reconnect(); } catch {} }
+      if (conn && conn.open) {
+        if (Date.now() - heard > 12000) { const dead = conn; conn = null; dead.close(); render(); }
+        else send({ ping: 1 });
+      }
+      dial();
+    }
+    // Phones freeze the page when locked or in the background, so check the link as soon as it's back.
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) { dialed = 0; keepAlive(); } });
     open();
+    setInterval(keepAlive, 3000);
     return {
       connected: () => !!(conn && conn.open),
       doc: (path) => ({
@@ -943,8 +981,10 @@ details.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px
     box.hidden = !!window.claude || !window.Peer;
     if (box.hidden) return;
     if (!net) { box.append(el("button", { class: "btn go big", type: "button", text: "Play online: make an invite link", onclick: createRoom })); return; }
-    box.append(el("button", { class: "btn", type: "button", text: "Copy invite link", onclick: () => navigator.clipboard.writeText(location.href).then(() => toast("Invite link copied."), () => toast("Copy the address from your browser's address bar.")) }),
-      el("span", { class: "hint", text: net.connected() ? "Connected" : "Not connected. Both of you need the game open." }));
+    const copy = () => navigator.clipboard.writeText(location.href).then(() => toast("Invite link copied."), () => toast("Copy the address from your browser's address bar."));
+    const phone = navigator.share && matchMedia("(hover: none)").matches;
+    box.append(el("button", { class: "btn", type: "button", text: phone ? "Share invite link" : "Copy invite link", onclick: () => phone ? navigator.share({ title: "KD Game 1", url: location.href }).catch((e) => { if (e.name !== "AbortError") copy(); }) : copy() }),
+      el("span", { class: "hint", text: net.connected() ? "Connected" : "Not connected. Both of you need the game open. It reconnects by itself." }));
   }
 
   // ---------- boot ----------
